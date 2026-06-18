@@ -1,0 +1,37 @@
+# Python 编译缓存
+__pycache__/
+*.py[cod]
+*$py.class
+
+# 虚拟环境
+venv/
+.venv/
+env/
+ENV/
+
+# 环境变量与敏感信息（核心要求：不提交API Key）
+.env
+.env.local
+.env.*.local
+!.env.example
+config.ini
+secrets.json
+
+# IDE 配置文件
+.idea/
+.vscode/
+*.iml
+
+# 数据库与日志
+*.db
+*.sqlite3
+*.log
+logs/
+
+# 测试与覆盖率
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Docker 挂载数据
+data/
