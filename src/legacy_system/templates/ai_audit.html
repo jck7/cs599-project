@@ -1,0 +1,189 @@
+{% extends "layout.html" %}
+{% set active_page = 'ai_audit' %}
+{% block title %}智能审计中心 · 企业报销管理系统{% endblock %}
+{% block bc %}智能审计{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-semibold text-gray-800">🔍 智能合规审计中心</h1>
+            <p class="text-sm text-gray-400 mt-1">AI 驱动的全量报销单合规性审查</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <select id="auditDays" class="fs" style="width:auto">
+                <option value="7">近7天</option>
+                <option value="30" selected>近30天</option>
+                <option value="90">近90天</option>
+            </select>
+            <button onclick="runAudit()" class="btn btn-p" id="auditBtn">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                开始审计
+            </button>
+        </div>
+    </div>
+
+    <!-- 审计结果概览 -->
+    <div class="grid g4" style="grid-template-columns:repeat(4,1fr);gap:16px" id="auditSummary">
+        <div class="stat"><div class="s-l">扫描单据</div><div class="s-v" id="sScanned">-</div><div class="s-e">已通过报销单</div></div>
+        <div class="stat"><div class="s-l">发现风险</div><div class="s-v" style="color:var(--c-danger)" id="sFindings">-</div><div class="s-e">风险项总数</div></div>
+        <div class="stat"><div class="s-l">高风险</div><div class="s-v" style="color:var(--c-danger)" id="sHigh">-</div><div class="s-e">需立即处理</div></div>
+        <div class="stat"><div class="s-l">中风险</div><div class="s-v" style="color:var(--c-warning)" id="sMedium">-</div><div class="s-e">建议关注</div></div>
+    </div>
+
+    <!-- 风险分布图 + 审计发现列表 -->
+    <div class="grid g2" style="grid-template-columns:1fr 1fr;gap:24px">
+        <div class="card">
+            <div class="card-hd"><span class="card-title">风险类型分布</span></div>
+            <div class="card-bd" style="height:300px"><div id="riskChart" style="width:100%;height:100%"></div></div>
+        </div>
+        <div class="card">
+            <div class="card-hd"><span class="card-title">风险等级分布</span></div>
+            <div class="card-bd" style="height:300px"><div id="levelChart" style="width:100%;height:100%"></div></div>
+        </div>
+    </div>
+
+    <!-- 审计发现列表 -->
+    <div class="card">
+        <div class="card-hd">
+            <span class="card-title">审计发现明细</span>
+            <div class="flex items-center gap-2">
+                <button onclick="filterFindings('all')" class="btn btn-df btn-sm filter-btn active" data-level="all">全部</button>
+                <button onclick="filterFindings('high')" class="btn btn-df btn-sm filter-btn" data-level="high">高风险</button>
+                <button onclick="filterFindings('medium')" class="btn btn-df btn-sm filter-btn" data-level="medium">中风险</button>
+                <button onclick="filterFindings('low')" class="btn btn-df btn-sm filter-btn" data-level="low">低风险</button>
+            </div>
+        </div>
+        <div class="card-bd p-0">
+            <table class="dt" id="findingsTable">
+                <thead><tr><th>风险等级</th><th>风险类型</th><th>描述</th><th>建议处理</th><th>操作</th></tr></thead>
+                <tbody id="findingsBody">
+                    <tr><td colspan="5" class="text-center py-12" style="color:var(--c-text-3)">点击「开始审计」执行合规扫描</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- 审计报告 -->
+    <div class="card" id="reportCard" style="display:none">
+        <div class="card-hd"><span class="card-title">📄 审计报告</span></div>
+        <div class="card-bd">
+            <pre id="auditReport" class="text-sm bg-gray-50 p-4 rounded-lg overflow-x-auto" style="white-space:pre-wrap;font-family:inherit"></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    var allFindings = [];
+    var riskChart = null, levelChart = null;
+
+    function runAudit(){
+        var btn = document.getElementById('auditBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 审计中...';
+        var days = parseInt(document.getElementById('auditDays').value);
+
+        fetch('/api/ai/audit', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({days: days, risk_level: 'all'})
+        }).then(function(r){return r.json()}).then(function(res){
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> 重新审计';
+            if(res.code !== 0){showToast(res.message,'err');return}
+            var d = res.data;
+            allFindings = d.findings || [];
+
+            // 更新概览
+            document.getElementById('sScanned').textContent = d.total_scanned;
+            document.getElementById('sFindings').textContent = d.risk_summary.total_findings;
+            document.getElementById('sHigh').textContent = d.risk_summary.high;
+            document.getElementById('sMedium').textContent = d.risk_summary.medium;
+
+            // 渲染图表
+            renderCharts(d.risk_summary);
+
+            // 渲染列表
+            renderFindings(allFindings);
+
+            // 审计报告
+            if(d.audit_report){
+                document.getElementById('reportCard').style.display = '';
+                document.getElementById('auditReport').textContent = d.audit_report;
+            }
+
+            showToast('审计完成，发现'+d.risk_summary.total_findings+'项风险','ok');
+        }).catch(function(e){
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> 开始审计';
+            showToast('审计请求失败','err');
+        });
+    }
+
+    function renderCharts(summary){
+        // 风险类型分布
+        if(riskChart) riskChart.dispose();
+        riskChart = echarts.init(document.getElementById('riskChart'));
+        var typeData = [];
+        var typeMap = {'split_expense':'拆分单据','sequential_invoice':'连号发票','high_frequency':'高频报销','over_standard':'超标报销','weekend_submit':'周末提交'};
+        for(var k in summary.by_type){
+            typeData.push({value:summary.by_type[k], name:typeMap[k]||k});
+        }
+        riskChart.setOption({
+            tooltip:{trigger:'item'},
+            series:[{type:'pie',radius:['40%','70%'],label:{formatter:'{b}\n{c}项'},data:typeData}]
+        });
+
+        // 风险等级分布
+        if(levelChart) levelChart.dispose();
+        levelChart = echarts.init(document.getElementById('levelChart'));
+        levelChart.setOption({
+            tooltip:{trigger:'axis'},
+            grid:{top:20,right:20,bottom:30,left:50},
+            xAxis:{type:'category',data:['高风险','中风险','低风险'],axisLabel:{color:'#8c8c8c'}},
+            yAxis:{type:'value',axisLine:{show:false},splitLine:{lineStyle:{color:'#f0f0f0'}}},
+            series:[{type:'bar',barWidth:40,data:[
+                {value:summary.high,itemStyle:{color:'#ff4d4f'}},
+                {value:summary.medium,itemStyle:{color:'#faad14'}},
+                {value:summary.low,itemStyle:{color:'#52c41a'}},
+            ]}]
+        });
+    }
+
+    function renderFindings(findings){
+        var levelMap = {high:'高',medium:'中',low:'低'};
+        var levelColor = {high:'tag-rejected',medium:'tag-pending',low:'tag-approved'};
+        var typeMap = {'split_expense':'拆分单据','sequential_invoice':'连号发票','high_frequency':'高频报销','over_standard':'超标报销','weekend_submit':'周末提交','large_amount':'大额报销','high_reject_rate':'高驳回率'};
+
+        var html = '';
+        if(!findings.length){
+            html = '<tr><td colspan="5" class="text-center py-12" style="color:var(--c-text-3)">未发现风险项</td></tr>';
+        }
+        findings.forEach(function(f){
+            html += '<tr class="finding-row" data-level="'+f.level+'">';
+            html += '<td><span class="tag '+levelColor[f.level]+'">'+levelMap[f.level]+'</span></td>';
+            html += '<td>'+(typeMap[f.type]||f.type)+'</td>';
+            html += '<td class="text-sm">'+f.description+'</td>';
+            html += '<td class="text-xs" style="color:var(--c-text-3)">'+(f.suggestion||'-')+'</td>';
+            html += '<td>';
+            if(f.expense_id) html += '<a href="/detail/'+f.expense_id+'" class="btn btn-t btn-sm">查看</a>';
+            html += '</td>';
+            html += '</tr>';
+        });
+        document.getElementById('findingsBody').innerHTML = html;
+    }
+
+    function filterFindings(level){
+        document.querySelectorAll('.filter-btn').forEach(function(b){b.classList.remove('active')});
+        document.querySelector('.filter-btn[data-level="'+level+'"]').classList.add('active');
+        var filtered = level === 'all' ? allFindings : allFindings.filter(function(f){return f.level===level});
+        renderFindings(filtered);
+    }
+
+    window.addEventListener('resize',function(){if(riskChart)riskChart.resize();if(levelChart)levelChart.resize()});
+
+    // 页面加载时自动执行审计
+    document.addEventListener('DOMContentLoaded', function(){ runAudit(); });
+</script>
+{% endblock %}

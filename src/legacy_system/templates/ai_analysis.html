@@ -1,0 +1,187 @@
+{% extends "layout.html" %}
+{% set active_page = 'ai_analysis' %}
+{% block title %}智能数据分析 · 企业报销管理系统{% endblock %}
+{% block bc %}数据分析{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-xl font-semibold text-gray-800">📊 智能数据分析</h1>
+        <p class="text-sm text-gray-400 mt-1">用自然语言提问，AI 自动生成数据洞察与可视化图表</p>
+    </div>
+
+    <!-- 快捷问题 -->
+    <div class="card">
+        <div class="card-bd py-3">
+            <div class="flex items-center gap-3 flex-wrap">
+                <span class="text-sm" style="color:var(--c-text-3)">试试问：</span>
+                <button onclick="askData('哪个部门报销最多？')" class="btn btn-df btn-sm">哪个部门报销最多？</button>
+                <button onclick="askData('月度报销趋势如何？')" class="btn btn-df btn-sm">月度报销趋势如何？</button>
+                <button onclick="askData('费用类型分布情况')" class="btn btn-df btn-sm">费用类型分布</button>
+                <button onclick="askData('有哪些报销异常？')" class="btn btn-df btn-sm">异常检测</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 输入 + 结果 -->
+    <div class="grid g2" style="grid-template-columns:1fr 1fr;gap:24px">
+        <!-- 左：输入 + 文字结论 -->
+        <div class="space-y-4">
+            <div class="card">
+                <div class="card-hd"><span class="card-title">自然语言提问</span></div>
+                <div class="card-bd">
+                    <textarea id="analysisInput" class="ft" rows="3" placeholder="例如：Q2哪个部门报销最多？本月差旅费同比变化如何？"></textarea>
+                    <button onclick="askData()" class="btn btn-p w-full mt-3" id="analysisBtn">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        AI 分析
+                    </button>
+                </div>
+            </div>
+
+            <!-- 文字结论 -->
+            <div class="card" id="conclusionCard" style="display:none">
+                <div class="card-hd"><span class="card-title">📝 AI 分析结论</span></div>
+                <div class="card-bd">
+                    <div id="conclusion" class="text-sm text-gray-700 leading-relaxed"></div>
+                    <div id="dataHint" class="mt-2 text-xs" style="color:var(--c-text-3)"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右：图表 -->
+        <div class="card">
+            <div class="card-hd"><span class="card-title">可视化图表</span></div>
+            <div class="card-bd" style="height:400px">
+                <div id="analysisChart" style="width:100%;height:100%"></div>
+                <div id="chartPlaceholder" class="flex items-center justify-center h-full" style="color:var(--c-text-3)">
+                    <div class="text-center">
+                        <svg class="w-16 h-16 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                        <p>输入问题后自动生成图表</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 数据明细表格 -->
+    <div class="card" id="detailTable" style="display:none">
+        <div class="card-hd"><span class="card-title">数据明细</span></div>
+        <div class="card-bd p-0" id="tableContent"></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    var chart = null;
+
+    function askData(query){
+        var q = query || document.getElementById('analysisInput').value.trim();
+        if(!q) return;
+        document.getElementById('analysisInput').value = q;
+
+        var btn = document.getElementById('analysisBtn');
+        btn.disabled = true; btn.innerHTML = '<div class="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 分析中...';
+
+        fetch('/api/ai/analysis', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({query: q})
+        }).then(function(r){return r.json()}).then(function(res){
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> AI 分析';
+            if(res.code !== 0){showToast(res.message,'err');return}
+            var d = res.data;
+            renderChart(d.chart_type, d.data);
+            renderConclusion(d);
+        }).catch(function(e){
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> AI 分析';
+            showToast('分析失败','err');
+        });
+    }
+
+    function renderChart(type, data){
+        document.getElementById('chartPlaceholder').style.display = 'none';
+        if(chart) chart.dispose();
+        chart = echarts.init(document.getElementById('analysisChart'));
+
+        // 兼容两层和三层嵌套
+        var items = data.data || data;
+        if(items && items.data) items = items.data;
+
+        if(type === 'bar' && items){
+            chart.setOption({
+                tooltip:{trigger:'axis'},
+                grid:{top:20,right:20,bottom:30,left:80},
+                xAxis:{type:'value',axisLine:{show:false},splitLine:{lineStyle:{color:'#f0f0f0'}}},
+                yAxis:{type:'category',data:items.map(function(i){return i.dept_name||i.month||i.type}),axisLabel:{color:'#595959'}},
+                series:[{type:'bar',barWidth:16,data:items.map(function(i){return{value:i.total,itemStyle:{color:'#1677ff'}}}),label:{show:true,position:'right',formatter:function(p){return'¥'+p.value.toLocaleString()},color:'#595959',fontSize:11}}]
+            });
+        } else if(type === 'line' && items){
+            chart.setOption({
+                tooltip:{trigger:'axis',formatter:function(p){return p[0].name+'<br/>报销金额：¥'+p[0].value.toLocaleString()}},
+                grid:{top:20,right:20,bottom:30,left:60},
+                xAxis:{type:'category',data:items.map(function(i){return i.month}),axisLabel:{color:'#8c8c8c'}},
+                yAxis:{type:'value',axisLine:{show:false},splitLine:{lineStyle:{color:'#f0f0f0'}},axisLabel:{color:'#8c8c8c',formatter:function(v){return(v/10000)+'万'}}},
+                series:[{type:'line',smooth:true,data:items.map(function(i){return i.total}),lineStyle:{color:'#1677ff',width:3},itemStyle:{color:'#1677ff'},areaStyle:{color:{type:'linear',x:0,y:0,x2:0,y2:1,colorStops:[{offset:0,color:'rgba(22,119,255,.2)'},{offset:1,color:'rgba(22,119,255,0)'}]}}}]
+            });
+        } else if(type === 'pie' && items){
+            chart.setOption({
+                tooltip:{trigger:'item'},
+                series:[{type:'pie',radius:['40%','70%'],label:{formatter:'{b}\n{d}%'},data:items.map(function(i){return{value:i.total,name:i.type}})}]
+            });
+        } else if(type === 'table' && items){
+            // 表格类型
+            renderTable(items.anomalies || items);
+        }
+    }
+
+    function renderConclusion(d){
+        document.getElementById('conclusionCard').style.display = '';
+        var conclusion = '';
+        var innerData = d.data || d;
+        if(innerData && innerData.data) innerData = innerData.data;
+
+        if(d.chart_type === 'bar' && innerData && innerData.length){
+            var top = innerData[0];
+            conclusion = '根据分析，<strong>' + (top.dept_name||'') + '</strong>报销金额最高，达 <strong>¥' + (top.total||0).toLocaleString() + '</strong>。';
+        } else if(d.chart_type === 'line'){
+            conclusion = '月度报销趋势已生成，可查看各月报销金额变化情况。';
+        } else if(d.chart_type === 'pie'){
+            conclusion = '费用类型分布已生成，可查看各类费用占比情况。';
+        } else if(d.chart_type === 'table'){
+            conclusion = '已检测到 <strong>' + (innerData.anomaly_count||0) + '</strong> 项异常，请查看下方明细。';
+        }
+        document.getElementById('conclusion').innerHTML = conclusion;
+        if(d.hint){
+            document.getElementById('dataHint').textContent = d.hint;
+        }
+    }
+
+    function renderTable(anomalies){
+        var el = document.getElementById('detailTable');
+        el.style.display = '';
+        var html = '<table class="dt"><thead><tr><th>类型</th><th>等级</th><th>描述</th></tr></thead><tbody>';
+        anomalies.forEach(function(a){
+            var lc = a.level==='high'?'tag-rejected':a.level==='medium'?'tag-pending':'tag-approved';
+            var lm = {high:'高',medium:'中',low:'低'};
+            html += '<tr><td>'+a.type+'</td><td><span class="tag '+lc+'">'+lm[a.level]+'</span></td><td class="text-sm">'+a.description+'</td></tr>';
+        });
+        html += '</tbody></table>';
+        document.getElementById('tableContent').innerHTML = html;
+    }
+
+    window.addEventListener('resize',function(){if(chart)chart.resize()});
+
+    // 页面加载时自动渲染默认图表
+    document.addEventListener('DOMContentLoaded', function(){
+        loadDefaultCharts();
+    });
+
+    function loadDefaultCharts(){
+        // 默认展示部门报销排行
+        askData('哪个部门报销最多');
+    }
+</script>
+{% endblock %}

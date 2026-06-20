@@ -1,0 +1,73 @@
+{% extends "layout.html" %}
+{% set active_page = 'rule' %}
+{% block title %}费用标准 · 企业报销管理系统{% endblock %}
+{% block bc %}费用标准{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-xl font-semibold text-gray-800">费用报销标准</h1>
+        <p class="text-sm text-gray-400 mt-1">不同职级对应的报销上限，超标需审批人特别审批</p>
+    </div>
+
+    <div class="card">
+        <div class="card-hd"><span class="card-title">费用类型</span></div>
+        <div class="card-bd">
+            <div class="grid g4" style="grid-template-columns:repeat(4,1fr);gap:16px">
+                {% for t in types %}
+                <div class="flex items-center gap-3 p-3 rounded-lg bg-gray-50">
+                    <span class="text-2xl">{{ t.icon }}</span>
+                    <div><div class="font-medium">{{ t.name }}</div><div class="text-xs" style="color:var(--c-text-3)">{{ t.code }}</div></div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="card overflow-hidden">
+        <div class="card-hd"><span class="card-title">各职级报销上限（元/次或元/天）</span></div>
+        <table class="dt">
+            <thead><tr><th>职级</th><th>名称</th><th class="tr">差旅/天</th><th class="tr">餐饮/餐</th><th class="tr">交通/次</th><th>说明</th></tr></thead>
+            <tbody>
+            {% for code,info in levels.items() %}
+            <tr>
+                <td class="mono font-medium">{{ code }}</td>
+                <td class="font-medium">{{ info.name }}</td>
+                <td class="tr mono">¥{{ info.travel }}</td>
+                <td class="tr mono">¥{{ info.meal }}</td>
+                <td class="tr mono">¥{{ info.transport }}</td>
+                <td class="text-sm" style="color:var(--c-text-3)">{% if code=='P4' %}基础岗位{% elif code=='P5' %}资深岗位{% elif code=='P6' %}主管级{% elif code=='M1' %}经理级{% elif code=='M2' %}高级经理{% elif code=='D1' %}总监级{% elif code=='VP' %}副总裁{% elif code=='CEO' %}总经理{% endif %}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card">
+        <div class="card-hd"><span class="card-title">审批流程说明</span></div>
+        <div class="card-bd space-y-4">
+            <div class="p-4 rounded-lg bg-blue-50 border border-blue-100">
+                <div class="font-medium mb-2" style="color:var(--c-primary)">📋 0-1000元：两级审批</div>
+                <div class="text-sm text-gray-600">员工提交 → 部门经理 → 财务审核 → 完成</div>
+            </div>
+            <div class="p-4 rounded-lg bg-yellow-50 border border-yellow-100">
+                <div class="font-medium mb-2" style="color:#d48806">📋 1000-5000元：三级审批</div>
+                <div class="text-sm text-gray-600">员工提交 → 部门经理 → 财务 → 财务总监 → 完成</div>
+            </div>
+            <div class="p-4 rounded-lg bg-red-50 border border-red-100">
+                <div class="font-medium mb-2 text-red-700">📋 5000元以上：四级审批</div>
+                <div class="text-sm text-gray-600">员工提交 → 部门经理 → 财务 → 财务总监 → 总经理 → 完成</div>
+            </div>
+            <div class="p-4 rounded-lg bg-gray-50 border border-gray-200">
+                <div class="font-medium mb-2">⚠️ 注意</div>
+                <ul class="text-sm text-gray-600 space-y-1 list-disc list-inside">
+                    <li>费用标准仅为提示，系统不强制拦截</li>
+                    <li>超标由审批人人工判断</li>
+                    <li>任意节点可驳回，驳回后可修改重新提交</li>
+                    <li>驳回必须填写理由</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

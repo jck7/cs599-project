@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}企业报销管理系统{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <div class="flex min-h-screen">
+        <!-- 侧边栏 -->
+        <aside class="sidebar" id="sidebar">
+            <div class="logo-wrap">
+                <div class="logo-icon">
+                    <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+                <span class="logo-text">报销管理系统</span>
+            </div>
+            <nav class="flex-1 py-3 overflow-y-auto">
+                <a href="/dashboard" class="mi {% if active_page=='dashboard' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
+                    <span class="ml">工作台</span>
+                </a>
+                <a href="/apply" class="mi {% if active_page=='apply' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    <span class="ml">发起报销</span>
+                </a>
+                <a href="/my_reimburse" class="mi {% if active_page=='my_reimburse' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    <span class="ml">我的报销</span>
+                </a>
+                {% if user.role in ('manager','finance','finance_director','ceo','admin') %}
+                <div class="ms">审批管理</div>
+                <a href="/approval" class="mi {% if active_page=='approval' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="ml">审批中心</span>
+                </a>
+                {% endif %}
+                {% if user.role in ('finance','finance_director','admin') %}
+                <div class="ms">财务管理</div>
+                <a href="/budget" class="mi {% if active_page=='budget' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="ml">预算管理</span>
+                </a>
+                {% endif %}
+                {% if user.role == 'admin' %}
+                <div class="ms">系统管理</div>
+                <a href="/rule" class="mi {% if active_page=='rule' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    <span class="ml">费用标准</span>
+                </a>
+                <a href="/employee" class="mi {% if active_page=='employee' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z"/></svg>
+                    <span class="ml">员工管理</span>
+                </a>
+                {% endif %}
+                {% if user.role != 'admin' %}
+                <div class="ms">参考信息</div>
+                <a href="/rule" class="mi {% if active_page=='rule' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="ml">费用标准</span>
+                </a>
+                {% endif %}
+                {% if user.role in ('finance','finance_director','admin') %}
+                <div class="ms">智能中台</div>
+                <a href="/ai/dashboard" class="mi {% if active_page=='ai_dashboard' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <span class="ml">运营看板</span>
+                </a>
+                <a href="/ai/audit" class="mi {% if active_page=='ai_audit' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                    <span class="ml">智能审计</span>
+                </a>
+                <a href="/ai/qa" class="mi {% if active_page=='ai_qa' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    <span class="ml">智能问答</span>
+                </a>
+                <a href="/ai/analysis" class="mi {% if active_page=='ai_analysis' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z"/></svg>
+                    <span class="ml">数据分析</span>
+                </a>
+                <a href="/ai/comparison" class="mi {% if active_page=='ai_comparison' %}active{% endif %}">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                    <span class="ml">效果对比</span>
+                </a>
+                {% endif %}
+            </nav>
+            <!-- AI 状态指示器 -->
+            <div class="px-4 py-2 border-t border-white/10" id="aiStatusBar">
+                <div class="flex items-center gap-2 text-xs" id="aiStatusContent">
+                    <span class="w-1.5 h-1.5 rounded-full bg-gray-500" id="aiStatusDot"></span>
+                    <span class="text-white/40" id="aiStatusText">AI 检测中...</span>
+                </div>
+            </div>
+            <div class="px-4 py-3 border-t border-white/10">
+                <button onclick="toggleSidebar()" class="flex items-center gap-2 text-white/50 hover:text-white text-sm w-full">
+                    <svg id="collapseIcon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7"/></svg>
+                    <span class="ml">收起</span>
+                </button>
+            </div>
+        </aside>
+
+        <!-- 主内容 -->
+        <div class="main-wrap flex flex-col">
+            <header class="topbar">
+                <div class="breadcrumb">
+                    <a href="/dashboard">首页</a>
+                    <span class="text-gray-300">/</span>
+                    <span class="cur">{% block bc %}工作台{% endblock %}</span>
+                </div>
+                <div class="flex items-center gap-4">
+                    <div class="flex items-center gap-2">
+                        <div class="w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center text-sm font-medium">{{ user.name[0] }}</div>
+                        <div>
+                            <div class="text-sm font-medium text-gray-800">{{ user.name }}</div>
+                            <div class="text-xs text-gray-400">{{ user.level | level_name }} · {{ user.dept_id | dept_name }}</div>
+                        </div>
+                    </div>
+                    <div class="w-px h-6 bg-gray-200"></div>
+                    <a href="/logout" class="text-sm text-gray-400 hover:text-gray-600 flex items-center gap-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
+                        退出
+                    </a>
+                </div>
+            </header>
+            <main class="flex-1 content">{% block content %}{% endblock %}</main>
+        </div>
+    </div>
+    <script src="/static/js/common.js"></script>
+    <script>
+    /* AI 状态检测 */
+    (function(){
+        var dot = document.getElementById('aiStatusDot');
+        var text = document.getElementById('aiStatusText');
+        if(!dot || !text) return;
+        fetch('/api/ai/status').then(function(r){return r.json()}).then(function(d){
+            if(d.code === 0){
+                var s = d.data;
+                if(s.fallback_active){
+                    dot.className = 'w-1.5 h-1.5 rounded-full';
+                    dot.style.background = '#faad14';
+                    text.textContent = 'AI 离线知识库';
+                    text.style.color = '#faad14';
+                } else if(s.llm_enabled){
+                    dot.className = 'w-1.5 h-1.5 rounded-full';
+                    dot.style.background = '#52c41a';
+                    text.textContent = 'AI 在线 (' + s.provider + ')';
+                    text.style.color = '#52c41a';
+                } else {
+                    dot.className = 'w-1.5 h-1.5 rounded-full';
+                    dot.style.background = '#8c8c8c';
+                    text.textContent = '规则引擎模式';
+                    text.style.color = 'rgba(255,255,255,0.3)';
+                }
+            }
+        }).catch(function(){});
+    })();
+    </script>
+    {% block script %}{% endblock %}
+</body>
+</html>

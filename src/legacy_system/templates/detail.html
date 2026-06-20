@@ -1,0 +1,220 @@
+{% extends "layout.html" %}
+{% set active_page = 'my_reimburse' %}
+{% block title %}报销详情 · 企业报销管理系统{% endblock %}
+{% block bc %}<a href="/my_reimburse" class="hover:text-primary">我的报销</a> / 详情{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl mx-auto space-y-6">
+    <!-- 标题 -->
+    <div class="flex items-center justify-between">
+        <div class="flex items-center gap-3">
+            <a href="javascript:history.back()" class="text-gray-400 hover:text-gray-600">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+            </a>
+            <div>
+                <h1 class="text-xl font-semibold text-gray-800">{{ exp.title }}</h1>
+                <div class="flex items-center gap-2 mt-1">
+                    <span class="mono text-xs" style="color:var(--c-text-4)">#{{ '%04d' % exp.id }}</span>
+                    <span class="tag tag-{{ exp.status }}">{{ exp.status | status_label }}</span>
+                </div>
+            </div>
+        </div>
+        <div class="flex items-center gap-2">
+            {% if can_edit %}<a href="/apply" class="btn btn-df">编辑</a>{% endif %}
+            {% if can_withdraw %}<button onclick="doWithdraw({{exp.id}})" class="btn btn-w">撤回</button>{% endif %}
+        </div>
+    </div>
+
+    <div class="grid" style="grid-template-columns:1fr 360px;gap:24px">
+        <!-- 左侧 -->
+        <div class="space-y-6">
+            <div class="card">
+                <div class="card-hd"><span class="card-title">基本信息</span></div>
+                <div class="card-bd">
+                    <div class="grid g2" style="grid-template-columns:1fr 1fr;gap:16px">
+                        <div><span class="text-sm" style="color:var(--c-text-3)">标题</span><div class="font-medium mt-1">{{ exp.title }}</div></div>
+                        <div><span class="text-sm" style="color:var(--c-text-3)">金额</span><div class="text-2xl font-bold mono mt-1" style="color:var(--c-primary)">¥{{ '{:,.2f}'.format(exp.amount) }}</div></div>
+                        <div><span class="text-sm" style="color:var(--c-text-3)">申请人</span><div class="mt-1">{{ applicant.name }}（{{ applicant.level | level_name }}）</div></div>
+                        <div><span class="text-sm" style="color:var(--c-text-3)">部门</span><div class="mt-1">{{ dept.name }}</div></div>
+                        <div><span class="text-sm" style="color:var(--c-text-3)">费用日期</span><div class="mt-1">{{ exp.exp_date }}</div></div>
+                        <div><span class="text-sm" style="color:var(--c-text-3)">提交时间</span><div class="mt-1">{{ exp.submit_time or '未提交' }}</div></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-hd"><span class="card-title">费用明细</span></div>
+                <table class="dt">
+                    <thead><tr><th>序号</th><th>类型</th><th class="tr">金额</th><th>日期</th><th>事由</th></tr></thead>
+                    <tbody>
+                    {% for it in exp.detail %}
+                    <tr><td>{{ loop.index }}</td><td>{{ it.type | type_name }}</td><td class="tr mono">¥{{ '{:,.2f}'.format(it.amount) }}</td><td>{{ it.date }}</td><td>{{ it.reason or '-' }}</td></tr>
+                    {% endfor %}
+                    </tbody>
+                    <tfoot><tr><td colspan="2" class="tr font-medium">合计</td><td class="tr font-bold mono text-lg" style="color:var(--c-primary)">¥{{ '{:,.2f}'.format(exp.amount) }}</td><td colspan="2"></td></tr></tfoot>
+                </table>
+            </div>
+
+            {% if exp.attachments %}
+            <div class="card">
+                <div class="card-hd"><span class="card-title">附件</span></div>
+                <div class="card-bd">
+                    <div class="flex flex-wrap gap-2">
+                        {% for a in exp.attachments %}
+                        <div class="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg text-sm">
+                            <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
+                            <span>{{ a }}</span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if can_approve %}
+            <div class="card">
+                <div class="card-hd"><span class="card-title">审批操作</span></div>
+                <div class="card-bd">
+                    <div class="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-700">当前节点：<strong>{{ exp.current_node | node_label }}</strong>，等待您审批</div>
+                    <div class="flex items-center gap-2">
+                        <button onclick="doApprove({{exp.id}})" class="btn btn-g">通过</button>
+                        <button onclick="showReject({{exp.id}})" class="btn btn-d">驳回</button>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            {% if can_pay %}
+            <div class="card">
+                <div class="card-hd"><span class="card-title">打款操作</span></div>
+                <div class="card-bd"><button onclick="doPay({{exp.id}})" class="btn btn-p">确认打款</button></div>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- 右侧时间轴 -->
+        <div>
+            <!-- 【新增】AI 助手面板 -->
+            <div class="card mb-4" id="aiPanel">
+                <div class="card-hd">
+                    <span class="card-title">🤖 AI 审批助手</span>
+                    <button onclick="aiAnalyze({{exp.id}})" class="btn btn-p btn-sm" id="aiAnalyzeBtn">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                        一键分析
+                    </button>
+                </div>
+                <div class="card-bd" id="aiPanelContent">
+                    <div class="text-center py-4" style="color:var(--c-text-3)">
+                        <svg class="w-10 h-10 mx-auto mb-2 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <p class="text-sm">点击「一键分析」获取 AI 审批建议</p>
+                    </div>
+                </div>
+            </div>
+            <!-- 【新增结束】 -->
+
+            <div class="card" style="position:sticky;top:80px">
+                <div class="card-hd"><span class="card-title">审批流程</span></div>
+                <div class="card-bd">
+                    <!-- 节点概览 -->
+                    <div class="mb-6 space-y-2">
+                        {% for node in exp.nodes %}
+                        {% set done = [] %}{% set rej = [] %}
+                        {% for h in exp.history %}
+                            {% if h.node == node.node and h.action == 'approve' %}{% if done.append(1) %}{% endif %}
+                            {% elif h.node == node.node and h.action == 'reject' %}{% if rej.append(1) %}{% endif %}{% endif %}
+                        {% endfor %}
+                        <div class="flex items-center gap-2 text-sm p-2 rounded
+                            {% if rej %}bg-red-50 text-red-600{% elif done %}bg-green-50 text-green-600{% elif exp.current_node==node.node %}bg-blue-50 font-medium{% else %}text-gray-400{% endif %}" style="{% if exp.current_node==node.node %}color:var(--c-primary){% endif %}">
+                            {% if done %}<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            {% elif rej %}<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                            {% elif exp.current_node==node.node %}<svg class="w-4 h-4 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clip-rule="evenodd"/></svg>
+                            {% else %}<svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm0-2a6 6 0 100-12 6 6 0 000 12z" clip-rule="evenodd"/></svg>
+                            {% endif %}
+                            {{ node.name }}
+                        </div>
+                        {% endfor %}
+                        {% if exp.status in ('approved','paid') %}
+                        <div class="flex items-center gap-2 text-sm p-2 rounded" style="background:var(--c-purple-bg);color:var(--c-purple)">
+                            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                            {% if exp.status == 'approved' %}待打款{% else %}已打款{% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="border-t border-gray-100 pt-4">
+                        <div class="text-sm font-medium mb-3">操作记录</div>
+                        {% if exp.history %}
+                        <div class="tl">
+                            {% for h in exp.history|reverse %}
+                            <div class="tl-item {% if h.action in ('approve','pay','archive') %}done{% elif h.action=='reject' %}reject{% else %}active{% endif %}">
+                                <div class="tl-node">{{ h.label }}</div>
+                                <div class="tl-meta">{{ h.op_name }} · {{ h.time[:16] }}</div>
+                                {% if h.comment %}<div class="tl-cmt">{{ h.comment }}</div>{% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                        {% else %}
+                        <div class="text-sm" style="color:var(--c-text-3)">暂无记录</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="rejectModal">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-hd"><span class="modal-title">驳回报销单</span><button onclick="closeModal('rejectModal')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button></div>
+        <div class="modal-bd"><input type="hidden" id="rejectId"><div class="fg"><label class="fl"><span class="req">*</span> 驳回理由</label><textarea id="rejectReason" class="ft" rows="4" placeholder="请填写理由"></textarea></div></div>
+        <div class="modal-ft"><button onclick="closeModal('rejectModal')" class="btn btn-df">取消</button><button onclick="doReject()" class="btn btn-d">确认驳回</button></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    function doApprove(id){if(!confirm('确认通过？'))return;postJSON('/api/approve',{id:id,action:'approve',comment:'同意'}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+    function showReject(id){document.getElementById('rejectId').value=id;document.getElementById('rejectReason').value='';openModal('rejectModal')}
+    function doReject(){var id=parseInt(document.getElementById('rejectId').value),reason=document.getElementById('rejectReason').value.trim();if(!reason){showToast('请填写理由','warn');return}postJSON('/api/approve',{id:id,action:'reject',comment:reason}).then(function(r){if(r.code===0){closeModal('rejectModal');showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+    function doWithdraw(id){if(!confirm('确认撤回？'))return;postJSON('/api/withdraw',{id:id}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+    function doPay(id){if(!confirm('确认打款？'))return;postJSON('/api/pay',{id:id}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+
+    /* 【新增】AI 分析功能 */
+    function aiAnalyze(eid){
+        var btn=document.getElementById('aiAnalyzeBtn');
+        btn.disabled=true;btn.innerHTML='<div class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div> 分析中...';
+        document.getElementById('aiPanelContent').innerHTML='<div class="text-center py-4"><div class="inline-block w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div><p class="text-sm" style="color:var(--c-text-3)">AI 正在分析...</p></div>';
+
+        fetch('/api/ai/analyze/'+eid).then(function(r){return r.json()}).then(function(res){
+            btn.disabled=false;btn.innerHTML='<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 重新分析';
+            if(res.code!==0){document.getElementById('aiPanelContent').innerHTML='<p class="text-sm text-red-500">'+res.message+'</p>';return}
+
+            var d=res.data,info=d.info_check||{},budget=d.budget_check||{},risk=d.risk_analysis||{},decision=d.final_decision||{};
+            var ciMap={'auto_approve':'✅ 自动通过','auto_reject':'❌ 自动驳回','manual_review':'👤 转人工','error':'⚠️ 异常'};
+            var ciColor={'auto_approve':'var(--c-success)','auto_reject':'var(--c-danger)','manual_review':'var(--c-warning)','error':'var(--c-danger)'};
+
+            var html='<div class="space-y-3">';
+            /* 决策结论 */
+            html+='<div class="p-3 rounded-lg text-center" style="background:var(--c-primary-bg);border:1px solid var(--c-primary-bd)"><div class="text-lg font-bold" style="color:'+ciColor[decision.conclusion]+'">'+ciMap[decision.conclusion]+'</div><div class="text-xs mt-1" style="color:var(--c-text-3)">置信度 '+Math.round(decision.confidence*100)+'%</div></div>';
+            /* 校验结果 */
+            html+='<div class="grid g2" style="grid-template-columns:1fr 1fr;gap:8px">';
+            html+='<div class="p-2 rounded text-xs '+(info.passed?'bg-green-50 text-green-700':'bg-red-50 text-red-700')+'">📋 信息：'+(info.passed?'通过':'不通过')+'</div>';
+            html+='<div class="p-2 rounded text-xs '+(budget.passed?'bg-green-50 text-green-700':'bg-red-50 text-red-700')+'">💰 预算：'+(budget.passed?'充足':'不足')+'</div>';
+            html+='</div>';
+            /* 风险评分 */
+            var rc=risk.risk_score>=60?'var(--c-danger)':risk.risk_score>=30?'var(--c-warning)':'var(--c-success)';
+            html+='<div class="p-2 rounded bg-gray-50"><div class="flex items-center justify-between mb-1"><span class="text-xs font-medium">风险评分</span><span class="text-xs font-bold" style="color:'+rc+'">'+risk.risk_score+'/100</span></div><div class="pbar"><div class="pbar-i" style="width:'+risk.risk_score+'%;background:'+rc+'"></div></div></div>';
+            /* 审批建议 */
+            html+='<div class="p-2 rounded text-xs" style="background:var(--c-primary-bg)"><strong>建议：</strong>'+decision.approval_advice+'</div>';
+            html+='</div>';
+
+            document.getElementById('aiPanelContent').innerHTML=html;
+        }).catch(function(e){
+            btn.disabled=false;btn.innerHTML='<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> 一键分析';
+            document.getElementById('aiPanelContent').innerHTML='<p class="text-sm text-red-500">请求失败</p>';
+        });
+    }
+    /* 【新增结束】 */
+</script>
+{% endblock %}

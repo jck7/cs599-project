@@ -1,0 +1,204 @@
+{% extends "layout.html" %}
+{% set active_page = 'apply' %}
+{% block title %}发起报销 · 企业报销管理系统{% endblock %}
+{% block bc %}发起报销{% endblock %}
+
+{% block content %}
+<div class="max-w-4xl mx-auto">
+    <!-- 步骤条 -->
+    <div class="steps">
+        <div class="step on" id="s1"><div class="step-n">1</div><span class="step-t">基本信息</span></div>
+        <div class="step-l"></div>
+        <div class="step" id="s2"><div class="step-n">2</div><span class="step-t">费用明细</span></div>
+        <div class="step-l"></div>
+        <div class="step" id="s3"><div class="step-n">3</div><span class="step-t">预览提交</span></div>
+    </div>
+
+    <!-- 提示 -->
+    <div class="mb-4 p-4 rounded-lg bg-blue-50 border border-blue-100 text-sm text-blue-700">
+        <strong>💡 费用标准：</strong>您当前职级 <strong>{{ lv_name }}</strong>，
+        差旅 ¥{{ lv.travel }}/天 · 餐饮 ¥{{ lv.meal }}/餐 · 交通 ¥{{ lv.transport }}/次。超标需审批人特别审批。
+    </div>
+    {% if db %}
+    <div class="mb-6 p-4 rounded-lg {% if db.used/db.total>0.9 %}bg-red-50 border-red-100 text-red-700{% elif db.used/db.total>0.7 %}bg-yellow-50 border-yellow-100 text-yellow-700{% else %}bg-green-50 border-green-100 text-green-700{% endif %} border text-sm">
+        <strong>📊 部门预算：</strong>{{ user.dept_id | dept_name }} 年度 ¥{{ '{:,.0f}'.format(db.total) }}，
+        已用 ¥{{ '{:,.0f}'.format(db.used) }}，剩余 ¥{{ '{:,.0f}'.format(db.total-db.used) }}
+       （{{ '{:.1f}'.format((db.total-db.used)/db.total*100) }}%）
+    </div>
+    {% endif %}
+
+    <!-- 【新增】AI 填报助手 -->
+    <div class="card mb-6" style="border-color:var(--c-primary-bd);background:var(--c-primary-bg)">
+        <div class="card-bd py-4">
+            <div class="flex items-center gap-3 mb-3">
+                <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span class="font-medium text-blue-800">AI 智能填报助手</span>
+            </div>
+            <div class="flex gap-3">
+                <input type="text" id="aiFillInput" class="fi flex-1" placeholder="用自然语言描述报销内容，如：上周去上海出差，高铁票860，酒店两晚1200">
+                <button onclick="aiParseExpense()" class="btn btn-p btn-sm" id="aiFillBtn">智能解析</button>
+            </div>
+            <div id="aiFillResult" class="mt-3"></div>
+            <div id="aiComplianceTips" class="mt-2"></div>
+        </div>
+    </div>
+    <!-- 【新增结束】 -->
+
+    <!-- 第一步 -->
+    <div id="p1" class="card">
+        <div class="card-hd"><span class="card-title">基本信息</span></div>
+        <div class="card-bd">
+            <div class="fg">
+                <label class="fl"><span class="req">*</span> 报销标题</label>
+                <input type="text" id="expTitle" class="fi" placeholder="如：北京出差差旅费报销" maxlength="100">
+                <div class="fh">简要描述本次报销事由</div>
+            </div>
+            <div class="flex justify-end">
+                <button class="btn btn-p" onclick="goStep(2)">下一步 →</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 第二步 -->
+    <div id="p2" class="card" style="display:none">
+        <div class="card-hd"><span class="card-title">费用明细</span><button class="btn btn-df btn-sm" onclick="addRow()">+ 添加行</button></div>
+        <div class="card-bd p-0">
+            <table class="dt" id="itemsTbl">
+                <thead><tr><th style="width:140px">费用类型</th><th style="width:130px">金额（元）</th><th style="width:140px">发生日期</th><th>事由</th><th style="width:70px">操作</th></tr></thead>
+                <tbody id="itemsBd"></tbody>
+                <tfoot><tr><td class="tr font-medium" colspan="1">合计</td><td class="font-bold text-lg mono" style="color:var(--c-primary)" id="totalAmt">¥0.00</td><td colspan="3"></td></tr></tfoot>
+            </table>
+        </div>
+        <div class="card-bd border-t border-gray-100">
+            <label class="fl">附件上传</label>
+            <div class="border-2 border-dashed border-gray-200 rounded-lg p-6 text-center hover:border-primary transition-colors cursor-pointer" onclick="addAtt()">
+                <svg class="w-8 h-8 mx-auto mb-2 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                <p class="text-sm text-gray-400">点击添加附件（模拟）</p>
+            </div>
+            <div id="attList" class="mt-2 space-y-1"></div>
+        </div>
+        <div class="card-bd border-t border-gray-100 flex justify-between">
+            <button class="btn btn-df" onclick="goStep(1)">← 上一步</button>
+            <button class="btn btn-p" onclick="goStep(3)">下一步 →</button>
+        </div>
+    </div>
+
+    <!-- 第三步 -->
+    <div id="p3" class="card" style="display:none">
+        <div class="card-hd"><span class="card-title">预览确认</span></div>
+        <div class="card-bd" id="preview"></div>
+        <div class="card-bd border-t border-gray-100 flex justify-between">
+            <button class="btn btn-df" onclick="goStep(2)">← 上一步</button>
+            <div class="flex gap-2">
+                <button class="btn btn-df" onclick="submitForm('save')">保存草稿</button>
+                <button class="btn btn-p" onclick="submitForm('submit')">提交审批</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    var cur=1, items=[], atts=[];
+    var types=[{% for t in types %}{code:'{{t.code}}',name:'{{t.name}}',icon:'{{t.icon}}'}{% if not loop.last%},{%endif%}{%endfor%}];
+    addRow();
+
+    function goStep(n){
+        if(n===2&&!document.getElementById('expTitle').value.trim()){showToast('请先填写标题','warn');return}
+        if(n===3){collect();if(!items.length||items.every(function(it){return!it.amount})){showToast('请填写费用明细','warn');return}renderPreview()}
+        cur=n;for(var i=1;i<=3;i++){document.getElementById('p'+i).style.display=i===n?'':'none';var s=document.getElementById('s'+i);s.className='step'+(i<n?' ok':i===n?' on':'')}
+    }
+    function addRow(){
+        var tb=document.getElementById('itemsBd'),idx=tb.rows.length;
+        var opts=types.map(function(t){return'<option value="'+t.code+'">'+t.icon+' '+t.name+'</option>'}).join('');
+        var today=new Date().toISOString().slice(0,10);
+        var r=tb.insertRow();
+        r.innerHTML='<td><select class="fs item-t">'+opts+'</select></td><td><input type="number" class="fi item-a tr" placeholder="0.00" min="0" step="0.01" oninput="calcTotal()"></td><td><input type="date" class="fi item-d" value="'+today+'"></td><td><input type="text" class="fi item-r" placeholder="事由"></td><td><button class="btn btn-t btn-sm text-red-500" onclick="delRow(this)">删除</button></td>';
+    }
+    function delRow(btn){var tb=document.getElementById('itemsBd');if(tb.rows.length<=1){showToast('至少保留一行','warn');return}btn.closest('tr').remove();calcTotal()}
+    function calcTotal(){var t=0;document.querySelectorAll('.item-a').forEach(function(i){var v=parseFloat(i.value);if(!isNaN(v))t+=v});document.getElementById('totalAmt').textContent='¥'+t.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');return t}
+    function collect(){items=[];document.querySelectorAll('#itemsBd tr').forEach(function(r){var t=r.querySelector('.item-t').value,a=r.querySelector('.item-a').value,d=r.querySelector('.item-d').value,rs=r.querySelector('.item-r').value;if(a&&parseFloat(a)>0)items.push({type:t,amount:a,date:d,reason:rs})})}
+    function addAtt(){var names=['发票.pdf','行程单.pdf','消费凭证.jpg','审批表.xlsx'];atts.push(names[Math.floor(Math.random()*names.length)]);renderAtts()}
+    function rmAtt(i){atts.splice(i,1);renderAtts()}
+    function renderAtts(){document.getElementById('attList').innerHTML=atts.map(function(a,i){return'<div class="flex items-center justify-between py-2 px-3 bg-gray-50 rounded text-sm"><div class="flex items-center gap-2"><svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg><span>'+a+'</span></div><button onclick="rmAtt('+i+')" class="text-gray-400 hover:text-red-500 text-sm">删除</button></div>'}).join('')}
+    function renderPreview(){
+        var total=calcTotal(),tn=function(c){var t=types.find(function(x){return x.code===c});return t?t.name:c};
+        var nodes=['部门经理 → 财务'];if(total>=1000)nodes.push('→ 财务总监');if(total>=5000)nodes.push('→ 总经理');
+        var rows=items.map(function(it){return'<tr><td>'+tn(it.type)+'</td><td class="tr mono">¥'+parseFloat(it.amount).toFixed(2)+'</td><td>'+it.date+'</td><td>'+(it.reason||'-')+'</td></tr>'}).join('');
+        document.getElementById('preview').innerHTML=
+            '<div class="mb-4"><span class="text-sm text-gray-400">标题</span><div class="font-medium mt-1">'+document.getElementById('expTitle').value+'</div></div>'+
+            '<div class="mb-4"><span class="text-sm text-gray-400">明细</span><table class="dt mt-2"><thead><tr><th>类型</th><th class="tr">金额</th><th>日期</th><th>事由</th></tr></thead><tbody>'+rows+'</tbody></table></div>'+
+            '<div class="mb-4"><span class="text-sm text-gray-400">合计</span><div class="text-2xl font-bold mt-1" style="color:var(--c-primary)">¥'+total.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')+'</div></div>'+
+            '<div class="mb-4"><span class="text-sm text-gray-400">审批流</span><div class="mt-1 text-sm text-gray-600">'+nodes.join(' ')+' → 完成</div></div>'+
+            (atts.length?'<div><span class="text-sm text-gray-400">附件</span><div class="mt-1">'+atts.join('、')+'</div></div>':'');
+    }
+    function submitForm(action){
+        collect();var title=document.getElementById('expTitle').value.trim();
+        if(!title){showToast('请填写标题','warn');return}
+        if(action==='submit'&&!items.length){showToast('请填写明细','warn');return}
+        var fd=new FormData();fd.append('title',title);fd.append('items_json',JSON.stringify(items));fd.append('atts_json',JSON.stringify(atts));fd.append('action',action);
+        fetch('/apply',{method:'POST',body:fd}).then(function(r){return r.json()}).then(function(res){
+            if(res.code===0){showToast(res.message,'ok');setTimeout(function(){window.location.href='/my_reimburse'},1500)}
+            else showToast(res.message,'err')
+        }).catch(function(){showToast('提交失败','err')});
+    }
+
+    /* 【新增】AI 填报助手 */
+    function aiParseExpense(){
+        var text=document.getElementById('aiFillInput').value.trim();
+        if(!text){showToast('请输入报销描述','warn');return}
+        var btn=document.getElementById('aiFillBtn');
+        btn.disabled=true;btn.textContent='解析中...';
+
+        fetch('/api/ai/fill_assist',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify({text:text})
+        }).then(function(r){return r.json()}).then(function(res){
+            btn.disabled=false;btn.textContent='智能解析';
+            if(res.code!==0){showToast(res.message,'err');return}
+            var d=res.data;
+
+            // 显示解析结果
+            if(d.parsed){
+                var p=d.parsed;
+                if(p.title) document.getElementById('expTitle').value=p.title;
+                if(p.items&&p.items.length){
+                    var tbody=document.getElementById('itemsBd');
+                    tbody.innerHTML='';
+                    p.items.forEach(function(it){
+                        addRow();
+                        var row=tbody.lastElementChild;
+                        row.querySelector('.item-t').value=it.type;
+                        row.querySelector('.item-a').value=it.amount;
+                        row.querySelector('.item-d').value=it.date;
+                        row.querySelector('.item-r').value=it.reason;
+                    });
+                    calcTotal();
+                }
+                document.getElementById('aiFillResult').innerHTML='<div class="p-2 rounded bg-green-50 border border-green-200 text-sm text-green-700">✅ 已自动解析并填充表单，共'+(p.items?p.items.length:0)+'项，合计¥'+(p.total_amount||0).toFixed(2)+'</div>';
+            }
+
+            // 显示合规提示
+            if(d.compliance_tips&&d.compliance_tips.length){
+                var tips='<div class="space-y-1">';
+                d.compliance_tips.forEach(function(t){
+                    var bg=t.level==='error'?'bg-red-50 border-red-200 text-red-700':'bg-yellow-50 border-yellow-200 text-yellow-700';
+                    tips+='<div class="p-2 rounded border text-sm '+bg+'">'+(t.level==='error'?'❌':'⚠️')+' '+t.message+'</div>';
+                });
+                tips+='</div>';
+                document.getElementById('aiComplianceTips').innerHTML=tips;
+            } else {
+                document.getElementById('aiComplianceTips').innerHTML='';
+            }
+
+            showToast('AI 解析完成','ok');
+        }).catch(function(e){
+            btn.disabled=false;btn.textContent='智能解析';
+            showToast('解析失败','err');
+        });
+    }
+    /* 【新增结束】 */
+</script>
+{% endblock %}

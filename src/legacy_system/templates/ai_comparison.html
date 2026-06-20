@@ -1,0 +1,154 @@
+{% extends "layout.html" %}
+{% set active_page = 'ai_comparison' %}
+{% block title %}改造前后对比 · 企业报销管理系统{% endblock %}
+{% block bc %}效果对比{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-xl font-semibold text-gray-800">📊 改造前后效果对比</h1>
+        <p class="text-sm text-gray-400 mt-1">传统人工审批 vs AI 辅助审批，四大维度量化对比</p>
+    </div>
+
+    <!-- 数据卡片对比 -->
+    <div class="grid g4" style="grid-template-columns:repeat(4,1fr);gap:16px">
+        <div class="stat">
+            <div class="s-l">平均审批时长</div>
+            <div class="flex items-end gap-2 mt-2">
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造前</div>
+                    <div class="text-xl font-bold text-gray-400 line-through">{{ comp.before.avg_time_hours }}h</div>
+                </div>
+                <svg class="w-5 h-5 text-green-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造后</div>
+                    <div class="text-xl font-bold" style="color:var(--c-success)">{{ comp.after.avg_time_hours }}h</div>
+                </div>
+            </div>
+            <div class="s-e text-green-600 font-medium">提升 {{ ((comp.before.avg_time_hours - comp.after.avg_time_hours) / comp.before.avg_time_hours * 100)|int }}%</div>
+        </div>
+        <div class="stat">
+            <div class="s-l">人工工作量占比</div>
+            <div class="flex items-end gap-2 mt-2">
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造前</div>
+                    <div class="text-xl font-bold text-gray-400 line-through">{{ comp.before.manual_ratio }}%</div>
+                </div>
+                <svg class="w-5 h-5 text-green-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造后</div>
+                    <div class="text-xl font-bold" style="color:var(--c-success)">{{ comp.after.manual_ratio }}%</div>
+                </div>
+            </div>
+            <div class="s-e text-green-600 font-medium">降低 {{ comp.before.manual_ratio - comp.after.manual_ratio }}%</div>
+        </div>
+        <div class="stat">
+            <div class="s-l">合规识别准确率</div>
+            <div class="flex items-end gap-2 mt-2">
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造前</div>
+                    <div class="text-xl font-bold text-gray-400 line-through">{{ comp.before.compliance_rate }}%</div>
+                </div>
+                <svg class="w-5 h-5 text-green-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造后</div>
+                    <div class="text-xl font-bold" style="color:var(--c-success)">{{ comp.after.compliance_rate }}%</div>
+                </div>
+            </div>
+            <div class="s-e text-green-600 font-medium">提升 +{{ comp.after.compliance_rate - comp.before.compliance_rate }}%</div>
+        </div>
+        <div class="stat">
+            <div class="s-l">预算响应时效</div>
+            <div class="flex items-end gap-2 mt-2">
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造前</div>
+                    <div class="text-xl font-bold text-gray-400 line-through">{{ comp.before.budget_response_hours }}h</div>
+                </div>
+                <svg class="w-5 h-5 text-green-500 mb-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                <div>
+                    <div class="text-xs" style="color:var(--c-text-3)">改造后</div>
+                    <div class="text-xl font-bold" style="color:var(--c-success)">{{ (comp.after.budget_response_hours * 60)|int }}min</div>
+                </div>
+            </div>
+            <div class="s-e text-green-600 font-medium">实时响应</div>
+        </div>
+    </div>
+
+    <!-- 对比图表 -->
+    <div class="grid g2" style="grid-template-columns:1fr 1fr;gap:24px">
+        <div class="card">
+            <div class="card-hd"><span class="card-title">四大维度对比</span></div>
+            <div class="card-bd" style="height:350px"><div id="radarChart" style="width:100%;height:100%"></div></div>
+        </div>
+        <div class="card">
+            <div class="card-hd"><span class="card-title">审批效率对比</span></div>
+            <div class="card-bd" style="height:350px"><div id="barChart" style="width:100%;height:100%"></div></div>
+        </div>
+    </div>
+
+    <!-- 改造价值说明 -->
+    <div class="card">
+        <div class="card-hd"><span class="card-title">改造价值总结</span></div>
+        <div class="card-bd">
+            <div class="grid g3" style="grid-template-columns:repeat(3,1fr);gap:24px">
+                <div class="p-4 rounded-lg bg-blue-50 border border-blue-100">
+                    <div class="text-2xl mb-2">⚡</div>
+                    <div class="font-medium text-gray-800 mb-1">效率提升</div>
+                    <div class="text-sm text-gray-600">平均审批时长从 48 小时缩短至 2 小时，低风险小额单据秒级自动处理</div>
+                </div>
+                <div class="p-4 rounded-lg bg-green-50 border border-green-100">
+                    <div class="text-2xl mb-2">🛡️</div>
+                    <div class="font-medium text-gray-800 mb-1">风险管控</div>
+                    <div class="text-sm text-gray-600">AI 多维度风险识别，合规检查准确率从 75% 提升至 95%，减少人为疏漏</div>
+                </div>
+                <div class="p-4 rounded-lg bg-purple-50 border border-purple-100" style="border-color:var(--c-purple-bd)">
+                    <div class="text-2xl mb-2">📊</div>
+                    <div class="font-medium text-gray-800 mb-1">智能决策</div>
+                    <div class="text-sm text-gray-600">预算实时校验、费用标准自动比对、历史行为分析，为审批人提供专业决策建议</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    // 雷达图
+    var rc = echarts.init(document.getElementById('radarChart'));
+    rc.setOption({
+        tooltip:{},
+        legend:{data:['改造前','改造后'],bottom:0},
+        radar:{
+            indicator:[
+                {name:'审批效率',max:100},{name:'人工减负',max:100},
+                {name:'合规准确',max:100},{name:'预算管控',max:100}
+            ],
+            radius:'60%',
+        },
+        series:[{
+            type:'radar',
+            data:[
+                {value:[15,0,75,20],name:'改造前',areaStyle:{color:'rgba(255,77,79,0.1)'},lineStyle:{color:'#ff4d4f'},itemStyle:{color:'#ff4d4f'}},
+                {value:[95,65,95,98],name:'改造后',areaStyle:{color:'rgba(82,196,26,0.1)'},lineStyle:{color:'#52c41a'},itemStyle:{color:'#52c41a'}},
+            ]
+        }]
+    });
+
+    // 柱状图
+    var bc = echarts.init(document.getElementById('barChart'));
+    bc.setOption({
+        tooltip:{trigger:'axis'},
+        legend:{data:['改造前','改造后'],bottom:0},
+        grid:{top:20,right:20,bottom:40,left:50},
+        xAxis:{type:'category',data:['平均时长(h)','人工占比(%)','合规率(%)','预算响应(h)'],axisLabel:{color:'#8c8c8c',fontSize:11}},
+        yAxis:{type:'value',axisLine:{show:false},splitLine:{lineStyle:{color:'#f0f0f0'}}},
+        series:[
+            {name:'改造前',type:'bar',data:[48,100,75,24],itemStyle:{color:'#d9d9d9'},barWidth:20},
+            {name:'改造后',type:'bar',data:[2,35,95,0.1],itemStyle:{color:'#1677ff'},barWidth:20},
+        ]
+    });
+
+    window.addEventListener('resize',function(){rc.resize();bc.resize()});
+</script>
+{% endblock %}
