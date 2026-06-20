@@ -1,0 +1,119 @@
+{% extends "layout.html" %}
+{% set active_page = 'approval' %}
+{% block title %}审批中心 · 企业报销管理系统{% endblock %}
+{% block bc %}审批中心{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-xl font-semibold text-gray-800">审批中心</h1>
+        <p class="text-sm text-gray-400 mt-1">
+            {% if user.role=='manager' %}管理本部门报销审批
+            {% elif user.role=='finance' %}财务审核所有报销
+            {% elif user.role=='finance_director' %}财务总监审批大额报销
+            {% elif user.role=='ceo' %}总经理审批高额报销
+            {% else %}审批管理{% endif %}
+        </p>
+    </div>
+
+    <div class="card">
+        <div class="tabs">
+            <a href="/approval?tab=pending" class="tab {% if tab=='pending' %}active{% endif %}">待我审批{% if plist %}<span class="badge ml-1">{{ plist|length }}</span>{% endif %}</a>
+            <a href="/approval?tab=done" class="tab {% if tab=='done' %}active{% endif %}">我已审批</a>
+        </div>
+
+        {% if tab == 'pending' %}
+        <div class="p-4">
+            {% if plist %}
+            <div class="mb-3 flex items-center justify-between">
+                <span class="text-sm" style="color:var(--c-text-3)">共 {{ plist|length }} 条</span>
+                <button onclick="batchApprove()" class="btn btn-g btn-sm">批量通过</button>
+            </div>
+            <table class="dt">
+                <thead><tr><th><input type="checkbox" id="selAll" onchange="toggleAll('selAll','eids')"></th><th>单号</th><th>标题</th><th>申请人</th><th>部门</th><th class="tr">金额</th><th>节点</th><th>提交时间</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for e in plist %}
+                <tr>
+                    <td><input type="checkbox" name="eids" value="{{ e.id }}"></td>
+                    <td class="mono text-xs" style="color:var(--c-text-3)">#{{ '%04d' % e.id }}</td>
+                    <td class="font-medium">{{ e.title }}</td>
+                    <td>{{ (_find_emp(e.applicant_id) or {}).name or '未知' }}</td>
+                    <td style="color:var(--c-text-3)">{{ (_find_dept(e.dept_id) or {}).name or '' }}</td>
+                    <td class="tr mono font-medium {% if e.amount>=5000 %}text-red-500{% elif e.amount>=1000 %}text-yellow-600{% endif %}">
+                        ¥{{ '{:,.2f}'.format(e.amount) }}
+                        {% if e.amount>=5000 %}<span class="text-xs text-red-500 ml-1">高额</span>{% endif %}
+                    </td>
+                    <td><span class="text-sm" style="color:var(--c-primary)">{{ e.current_node | node_label }}</span></td>
+                    <td class="text-xs" style="color:var(--c-text-4)">{{ (e.submit_time or '')[:16] }}</td>
+                    <td>
+                        <div class="flex items-center gap-1">
+                            <a href="/detail/{{ e.id }}" class="btn btn-t btn-sm">详情</a>
+                            <button onclick="approveOne({{e.id}})" class="btn btn-t btn-sm" style="color:var(--c-success)">通过</button>
+                            <button onclick="showReject({{e.id}})" class="btn btn-t btn-sm" style="color:var(--c-danger)">驳回</button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty"><svg class="w-12 h-12 mx-auto mb-3 text-gray-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg><p>暂无待审批</p></div>
+            {% endif %}
+        </div>
+        {% endif %}
+
+        {% if tab == 'done' %}
+        <div class="p-4">
+            {% if dlist %}
+            <table class="dt">
+                <thead><tr><th>单号</th><th>标题</th><th>申请人</th><th>部门</th><th class="tr">金额</th><th>我的操作</th><th>状态</th><th>操作</th></tr></thead>
+                <tbody>
+                {% for e in dlist %}
+                <tr>
+                    <td class="mono text-xs" style="color:var(--c-text-3)">#{{ '%04d' % e.id }}</td>
+                    <td class="font-medium">{{ e.title }}</td>
+                    <td>{{ (_find_emp(e.applicant_id) or {}).name or '未知' }}</td>
+                    <td style="color:var(--c-text-3)">{{ (_find_dept(e.dept_id) or {}).name or '' }}</td>
+                    <td class="tr mono">¥{{ '{:,.2f}'.format(e.amount) }}</td>
+                    <td>
+                        {% for h in e.history %}
+                        {% if h.op_id == user.id and h.action in ('approve','reject') %}
+                        <span class="tag {% if h.action=='approve' %}tag-approved{% else %}tag-rejected{% endif %}">{{ h.label }}</span>
+                        {% endif %}
+                        {% endfor %}
+                    </td>
+                    <td><span class="tag tag-{{ e.status }}">{{ e.status | status_label }}</span></td>
+                    <td><a href="/detail/{{ e.id }}" class="btn btn-t btn-sm">详情</a></td>
+                </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty"><p>暂无审批记录</p></div>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- 驳回弹窗 -->
+<div class="modal" id="rejectModal">
+    <div class="modal-box" style="max-width:480px">
+        <div class="modal-hd"><span class="modal-title">驳回报销单</span><button onclick="closeModal('rejectModal')" class="text-gray-400 hover:text-gray-600 text-xl">&times;</button></div>
+        <div class="modal-bd">
+            <input type="hidden" id="rejectId">
+            <div class="fg"><label class="fl"><span class="req">*</span> 驳回理由</label><textarea id="rejectReason" class="ft" rows="4" placeholder="请填写驳回理由"></textarea></div>
+        </div>
+        <div class="modal-ft"><button onclick="closeModal('rejectModal')" class="btn btn-df">取消</button><button onclick="doReject()" class="btn btn-d">确认驳回</button></div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    function approveOne(id){if(!confirm('确认通过？'))return;postJSON('/api/approve',{id:id,action:'approve',comment:'同意'}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+    function showReject(id){document.getElementById('rejectId').value=id;document.getElementById('rejectReason').value='';openModal('rejectModal')}
+    function doReject(){var id=parseInt(document.getElementById('rejectId').value),reason=document.getElementById('rejectReason').value.trim();if(!reason){showToast('请填写理由','warn');return}postJSON('/api/approve',{id:id,action:'reject',comment:reason}).then(function(r){if(r.code===0){closeModal('rejectModal');showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+    function batchApprove(){var ids=getChecked('eids');if(!ids.length){showToast('请先选择','warn');return}if(!confirm('确认批量通过 '+ids.length+' 条？'))return;postJSON('/api/batch_approve',{ids:ids,comment:'批量审批通过'}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+</script>
+{% endblock %}

@@ -1,0 +1,239 @@
+{% extends "layout.html" %}
+{% set active_page = 'ai_qa' %}
+{% block title %}财务智能问答 · 企业报销管理系统{% endblock %}
+{% block bc %}智能问答{% endblock %}
+
+{% block content %}
+<div class="flex flex-col" style="height:calc(100vh - 140px)">
+    <div class="flex items-center justify-between mb-4">
+        <div>
+            <h1 class="text-xl font-semibold text-gray-800">💬 财务制度智能问答</h1>
+            <p class="text-sm text-gray-400 mt-1">基于知识库的报销政策智能解答，支持引用溯源</p>
+        </div>
+        <button onclick="clearChat()" class="btn btn-df btn-sm">清空对话</button>
+    </div>
+
+    <!-- 对话区域 -->
+    <div class="card flex-1 flex flex-col overflow-hidden">
+        <div class="flex-1 overflow-y-auto p-6 space-y-4" id="chatArea">
+            <!-- 欢迎消息 -->
+            <div class="flex gap-3">
+                <div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0">
+                    <svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                </div>
+                <div class="flex-1">
+                    <div class="text-sm font-medium mb-1">AI 助手</div>
+                    <div class="p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm">
+                        您好！我是财务制度智能问答助手。我可以回答关于报销标准、审批流程、发票要求等问题。<br><br>
+                        您可以试试问我：
+                        <div class="mt-2 space-y-1">
+                            <button onclick="askQuick('差旅费报销标准是什么？')" class="block text-primary hover:underline">• 差旅费报销标准是什么？</button>
+                            <button onclick="askQuick('报销审批流程是怎样的？')" class="block text-primary hover:underline">• 报销审批流程是怎样的？</button>
+                            <button onclick="askQuick('发票有什么要求？')" class="block text-primary hover:underline">• 发票有什么要求？</button>
+                            <button onclick="askQuick('超出差旅标准怎么办？')" class="block text-primary hover:underline">• 超出差旅标准怎么办？</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 输入区域 -->
+        <div class="border-t border-gray-100 p-4">
+            <div class="flex gap-3">
+                <input type="text" id="qaInput" class="fi flex-1" placeholder="请输入您的问题..." onkeydown="if(event.key==='Enter')askQuestion()">
+                <button onclick="askQuestion()" class="btn btn-p" id="qaBtn">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"/></svg>
+                    发送
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    var chatHistory = [];
+
+    function askQuick(q){
+        document.getElementById('qaInput').value = q;
+        askQuestion();
+    }
+
+    function askQuestion(){
+        var input = document.getElementById('qaInput');
+        var q = input.value.trim();
+        if(!q) return;
+        input.value = '';
+
+        appendMessage('user', q);
+        chatHistory.push({role:'user', question:q});
+
+        // 创建流式消息容器
+        var msgId = 'stream_' + Date.now();
+        var area = document.getElementById('chatArea');
+        area.innerHTML += '<div class="flex gap-3" id="'+msgId+'"><div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div><div class="flex-1"><div class="text-sm font-medium mb-1">AI 助手</div><div class="p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm" id="'+msgId+'_content"><span class="animate-pulse" style="color:var(--c-text-3)">思考中...</span></div></div></div>';
+        area.scrollTop = area.scrollHeight;
+
+        var fullContent = '';
+        var sources = [];
+        var related = [];
+
+        // SSE 流式请求
+        fetch('/api/ai/qa/stream', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({question: q})
+        }).then(function(response){
+            var reader = response.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            function read(){
+                return reader.read().then(function(result){
+                    if(result.done){
+                        // 流结束，渲染最终内容
+                        renderFinalMessage(msgId, fullContent, sources, related);
+                        chatHistory.push({role:'ai', answer:fullContent});
+                        return;
+                    }
+                    buffer += decoder.decode(result.value, {stream:true});
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop();
+                    lines.forEach(function(line){
+                        if(line.startsWith('data: ')){
+                            try{
+                                var d = JSON.parse(line.substring(6));
+                                if(d.type === 'meta'){
+                                    sources = d.sources || [];
+                                } else if(d.type === 'chunk'){
+                                    fullContent += d.content;
+                                    document.getElementById(msgId+'_content').innerHTML = formatAnswer(fullContent) + '<span class="animate-pulse">▌</span>';
+                                    area.scrollTop = area.scrollHeight;
+                                } else if(d.type === 'done'){
+                                    related = d.related || [];
+                                }
+                            }catch(e){}
+                        }
+                    });
+                    return read();
+                });
+            }
+            return read();
+        }).catch(function(e){
+            document.getElementById(msgId+'_content').innerHTML = '<span style="color:var(--c-danger)">请求失败，请重试</span>';
+        });
+    }
+
+    // 格式化回答内容（换行→<br>）
+    function formatAnswer(text){
+        if(!text) return '';
+        return text.replace(/\n/g, '<br>');
+    }
+
+    // 流结束后渲染最终消息（含来源、相关问题）
+    function renderFinalMessage(msgId, content, sources, related){
+        var el = document.getElementById(msgId+'_content');
+        if(!el) return;
+        var html = formatAnswer(content);
+        // 来源引用
+        if(sources && sources.length){
+            html += '<div class="mt-2 p-2 rounded bg-gray-50 text-xs"><div class="font-medium mb-1" style="color:var(--c-text-3)">参考来源：</div>';
+            sources.forEach(function(s){
+                html += '<div class="mb-1" style="color:var(--c-text-2)">• '+escapeHtml(s.content)+'</div>';
+            });
+            html += '</div>';
+        }
+        // 相关问题
+        if(related && related.length){
+            html += '<div class="mt-2 text-xs" style="color:var(--c-text-3)">您可能还想问：';
+            related.forEach(function(r){
+                html += '<button onclick="askQuick(\''+escapeHtml(r)+'\')" class="text-primary hover:underline ml-2">'+escapeHtml(r)+'</button>';
+            });
+            html += '</div>';
+        }
+        el.innerHTML = html;
+    }
+
+    function appendMessage(role, content, sources, confidence, related, llmUsed, modelName){
+        var area = document.getElementById('chatArea');
+        var html = '';
+
+        if(role === 'user'){
+            html += '<div class="flex gap-3 justify-end">';
+            html += '<div class="flex-1" style="max-width:70%">';
+            html += '<div class="text-sm font-medium mb-1 text-right">我</div>';
+            html += '<div class="p-3 rounded-lg text-sm" style="background:var(--c-primary-bg);border:1px solid var(--c-primary-bd)">'+escapeHtml(content)+'</div>';
+            html += '</div>';
+            html += '<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 text-sm font-medium">我</div>';
+            html += '</div>';
+        } else {
+            html += '<div class="flex gap-3">';
+            html += '<div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>';
+            html += '<div class="flex-1">';
+            html += '<div class="text-sm font-medium mb-1">AI 助手</div>';
+            html += '<div class="p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm">'+escapeHtml(content)+'</div>';
+
+            // 来源引用
+            if(sources && sources.length){
+                html += '<div class="mt-2 p-2 rounded bg-gray-50 text-xs">';
+                html += '<div class="font-medium mb-1" style="color:var(--c-text-3)">📎 参考来源：</div>';
+                sources.forEach(function(s){
+                    html += '<div class="mb-1" style="color:var(--c-text-2)">• '+escapeHtml(s.content)+' <span class="text-gray-400">(相关度:'+Math.round(s.score*100)+'%)</span></div>';
+                });
+                html += '</div>';
+            }
+
+            // 置信度
+            if(confidence !== undefined){
+                var cc = confidence >= 0.7 ? 'var(--c-success)' : confidence >= 0.4 ? 'var(--c-warning)' : 'var(--c-danger)';
+                html += '<div class="mt-1 text-xs" style="color:'+cc+'">置信度：'+Math.round(confidence*100)+'%</div>';
+            }
+
+            // 相关问题
+            if(related && related.length){
+                html += '<div class="mt-2 text-xs" style="color:var(--c-text-3)">您可能还想问：';
+                related.forEach(function(r){
+                    html += '<button onclick="askQuick(\''+escapeHtml(r)+'\')" class="text-primary hover:underline ml-2">'+escapeHtml(r)+'</button>';
+                });
+                html += '</div>';
+            }
+
+            html += '</div></div>';
+        }
+
+        area.innerHTML += html;
+        area.scrollTop = area.scrollHeight;
+    }
+
+    function appendLoading(){
+        var area = document.getElementById('chatArea');
+        var id = 'loading_' + Date.now();
+        var html = '<div class="flex gap-3" id="'+id+'">';
+        html += '<div class="w-8 h-8 rounded-full bg-blue-50 flex items-center justify-center flex-shrink-0"><svg class="w-5 h-5 text-blue-500 animate-pulse" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.75 17L9 20l-1 1h8l-1-1-.75-3M3 13h18M5 17h14a2 2 0 002-2V5a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg></div>';
+        html += '<div class="flex-1"><div class="text-sm font-medium mb-1">AI 助手</div>';
+        html += '<div class="p-3 rounded-lg bg-blue-50 border border-blue-100 text-sm"><div class="flex items-center gap-2"><div class="inline-block w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div> 思考中...</div></div>';
+        html += '</div></div>';
+        area.innerHTML += html;
+        area.scrollTop = area.scrollHeight;
+        return id;
+    }
+
+    function removeLoading(id){
+        var el = document.getElementById(id);
+        if(el) el.remove();
+    }
+
+    function clearChat(){
+        chatHistory = [];
+        document.getElementById('chatArea').innerHTML = '';
+        // Re-add welcome message would require template, so just clear
+        showToast('对话已清空','ok');
+    }
+
+    function escapeHtml(s){
+        if(!s) return '';
+        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+</script>
+{% endblock %}

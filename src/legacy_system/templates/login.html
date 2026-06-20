@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>登录 · 企业报销管理系统</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        body { background: linear-gradient(135deg, #1677ff 0%, #0958d9 50%, #003a8c 100%); min-height: 100vh; }
+        .login-card { box-shadow: 0 8px 40px rgba(0,0,0,.15); }
+        .acc { transition: all .2s; cursor: pointer; }
+        .acc:hover { border-color: #1677ff; box-shadow: 0 2px 12px rgba(22,119,255,.2); transform: translateY(-2px); }
+        .acc.sel { border-color: #1677ff; background: #e6f4ff; }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+    <div class="w-full max-w-lg">
+        <!-- Logo -->
+        <div class="text-center mb-8">
+            <div class="w-16 h-16 bg-white/20 backdrop-blur rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+            </div>
+            <h1 class="text-2xl font-bold text-white mb-1">企业报销管理系统</h1>
+            <p class="text-blue-200 text-sm">Enterprise Reimbursement Management</p>
+        </div>
+
+        <div class="login-card bg-white rounded-xl p-8">
+            <h2 class="text-lg font-semibold text-gray-800 mb-1">账号登录</h2>
+            <p class="text-sm text-gray-400 mb-5">选择测试账号快速登录</p>
+
+            <form method="POST" action="/login" id="loginForm">
+                <input type="hidden" name="user_id" id="uid" value="">
+
+                <!-- 普通员工 -->
+                <div class="mb-4">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-2 font-medium">普通员工</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        {% for e in employees %}
+                        {% if e.role == 'employee' and e.id <= 10 %}
+                        <div class="acc border border-gray-200 rounded-lg p-2.5 flex items-center gap-2" onclick="pick(this,{{ e.id }})">
+                            <div class="w-7 h-7 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center text-xs font-medium flex-shrink-0">{{ e.name[0] }}</div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-medium text-gray-800 truncate">{{ e.name }}</div>
+                                <div class="text-xs text-gray-400">{{ e.dept_id | dept_name }} · {{ e.level }}</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- 部门经理 -->
+                <div class="mb-4">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-2 font-medium">部门经理</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        {% for e in employees %}
+                        {% if e.role == 'manager' %}
+                        <div class="acc border border-gray-200 rounded-lg p-2.5 flex items-center gap-2" onclick="pick(this,{{ e.id }})">
+                            <div class="w-7 h-7 rounded-full bg-orange-50 text-orange-500 flex items-center justify-center text-xs font-medium flex-shrink-0">{{ e.name[0] }}</div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-medium text-gray-800 truncate">{{ e.name }}</div>
+                                <div class="text-xs text-gray-400">{{ e.dept_id | dept_name }} · 经理</div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- 财务 / 高管 / 管理员 -->
+                <div class="mb-5">
+                    <div class="text-xs text-gray-400 uppercase tracking-wider mb-2 font-medium">财务 · 高管 · 管理员</div>
+                    <div class="grid grid-cols-2 gap-2">
+                        {% for e in employees %}
+                        {% if e.role in ('finance', 'finance_director', 'ceo', 'admin') %}
+                        <div class="acc border border-gray-200 rounded-lg p-2.5 flex items-center gap-2" onclick="pick(this,{{ e.id }})">
+                            <div class="w-7 h-7 rounded-full {% if e.role=='finance' %}bg-green-50 text-green-500{% elif e.role=='finance_director' %}bg-purple-50 text-purple-500{% elif e.role=='ceo' %}bg-red-50 text-red-500{% else %}bg-gray-100 text-gray-500{% endif %} flex items-center justify-center text-xs font-medium flex-shrink-0">{{ e.name[0] }}</div>
+                            <div class="min-w-0">
+                                <div class="text-sm font-medium text-gray-800 truncate">{{ e.name }}</div>
+                                <div class="text-xs text-gray-400">
+                                    {% if e.role=='finance' %}财务人员{% elif e.role=='finance_director' %}财务总监{% elif e.role=='ceo' %}总经理{% else %}管理员{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <button type="submit" id="loginBtn" class="w-full py-2.5 bg-blue-500 hover:bg-blue-600 text-white font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed" disabled>登录系统</button>
+            </form>
+        </div>
+
+        <div class="text-center mt-6 text-blue-200 text-xs space-y-1">
+            <p>© 2024 企业报销管理系统 · v2.0</p>
+            <p class="opacity-60">课程大作业基准系统 · 仅演示传统报销流程</p>
+        </div>
+    </div>
+
+    <script>
+        function pick(el, id) {
+            document.querySelectorAll('.acc').forEach(function(c) { c.classList.remove('sel'); });
+            el.classList.add('sel');
+            document.getElementById('uid').value = id;
+            document.getElementById('loginBtn').disabled = false;
+        }
+    </script>
+</body>
+</html>

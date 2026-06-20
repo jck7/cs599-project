@@ -1,0 +1,72 @@
+{% extends "layout.html" %}
+{% set active_page = 'my_reimburse' %}
+{% block title %}我的报销 · 企业报销管理系统{% endblock %}
+{% block bc %}我的报销{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex items-center justify-between">
+        <div>
+            <h1 class="text-xl font-semibold text-gray-800">我的报销</h1>
+            <p class="text-sm text-gray-400 mt-1">查看和管理所有报销单据</p>
+        </div>
+        <a href="/apply" class="btn btn-p">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            发起报销
+        </a>
+    </div>
+
+    <div class="card">
+        <div class="card-bd py-3">
+            <form method="GET" class="flex items-center gap-3 flex-wrap">
+                <select name="status" onchange="this.form.submit()" class="fs" style="width:auto">
+                    <option value="">全部状态</option>
+                    {% for code,label in [('draft','草稿'),('pending','审批中'),('approved','已通过'),('rejected','已驳回'),('paid','已打款'),('archived','已归档')] %}
+                    <option value="{{ code }}" {% if sf==code %}selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="keyword" value="{{ kw }}" placeholder="搜索标题" class="fi" style="width:200px">
+                <button type="submit" class="btn btn-p btn-sm">搜索</button>
+                {% if sf or kw %}<a href="/my_reimburse" class="text-sm text-gray-400 hover:text-gray-600">清除</a>{% endif %}
+            </form>
+        </div>
+    </div>
+
+    <div class="card overflow-hidden">
+        <table class="dt">
+            <thead><tr><th>单号</th><th>标题</th><th class="tr">金额</th><th>日期</th><th>提交时间</th><th>当前节点</th><th>状态</th><th>操作</th></tr></thead>
+            <tbody>
+            {% for e in expenses %}
+            <tr>
+                <td class="mono text-xs" style="color:var(--c-text-3)">#{{ '%04d' % e.id }}</td>
+                <td class="font-medium">{{ e.title }}</td>
+                <td class="tr mono font-medium">¥{{ '{:,.2f}'.format(e.amount) }}</td>
+                <td style="color:var(--c-text-3)">{{ e.exp_date }}</td>
+                <td class="text-xs" style="color:var(--c-text-4)">{{ (e.submit_time or '-')[:16] }}</td>
+                <td class="text-sm" style="color:var(--c-text-3)">{{ e.current_node | node_label }}</td>
+                <td><span class="tag tag-{{ e.status }}">{{ e.status | status_label }}</span></td>
+                <td>
+                    <div class="flex items-center gap-1">
+                        <a href="/detail/{{ e.id }}" class="btn btn-t btn-sm">详情</a>
+                        {% if e.status == 'draft' %}<a href="/apply" class="btn btn-t btn-sm" style="color:var(--c-warning)">编辑</a>{% endif %}
+                        {% if e.status == 'pending' %}<button onclick="withdraw({{e.id}})" class="btn btn-t btn-sm" style="color:var(--c-warning)">撤回</button>{% endif %}
+                        {% if e.status == 'rejected' %}<button onclick="resubmit({{e.id}})" class="btn btn-t btn-sm">重新提交</button>{% endif %}
+                    </div>
+                </td>
+            </tr>
+            {% endfor %}
+            {% if not expenses %}
+            <tr><td colspan="8" class="text-center py-12" style="color:var(--c-text-3)">暂无报销记录</td></tr>
+            {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
+
+{% block script %}
+<script>
+    function withdraw(id){if(!confirm('确认撤回？'))return;postJSON('/api/withdraw',{id:id}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+    function resubmit(id){if(!confirm('确认重新提交？'))return;postJSON('/api/resubmit',{id:id}).then(function(r){if(r.code===0){showToast(r.message,'ok');setTimeout(function(){location.reload()},1000)}else showToast(r.message,'err')})}
+</script>
+{% endblock %}

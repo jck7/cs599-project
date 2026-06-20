@@ -1,0 +1,64 @@
+{% extends "layout.html" %}
+{% set active_page = 'employee' %}
+{% block title %}员工管理 · 企业报销管理系统{% endblock %}
+{% block bc %}员工管理{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div>
+        <h1 class="text-xl font-semibold text-gray-800">员工管理</h1>
+        <p class="text-sm text-gray-400 mt-1">查看公司员工信息</p>
+    </div>
+
+    <div class="card">
+        <div class="card-bd py-3">
+            <form method="GET" class="flex items-center gap-3 flex-wrap">
+                <select name="dept" onchange="this.form.submit()" class="fs" style="width:auto">
+                    <option value="">全部部门</option>
+                    {% for d in departments %}
+                    <option value="{{ d.id }}" {% if df==d.id|string %}selected{% endif %}>{{ d.name }}</option>
+                    {% endfor %}
+                </select>
+                <input type="text" name="keyword" value="{{ kw }}" placeholder="搜索姓名或工号" class="fi" style="width:200px">
+                <button type="submit" class="btn btn-p btn-sm">搜索</button>
+                {% if df or kw %}<a href="/employee" class="text-sm text-gray-400 hover:text-gray-600">清除</a>{% endif %}
+                <span class="text-sm ml-auto" style="color:var(--c-text-3)">共 {{ employees|length }} 人</span>
+            </form>
+        </div>
+    </div>
+
+    <div class="card overflow-hidden">
+        <table class="dt">
+            <thead><tr><th>工号</th><th>姓名</th><th>部门</th><th>职级</th><th>角色</th><th>手机</th><th>邮箱</th><th>状态</th></tr></thead>
+            <tbody>
+            {% for e in employees %}
+            <tr>
+                <td class="mono text-xs" style="color:var(--c-text-3)">{{ e.emp_no }}</td>
+                <td>
+                    <div class="flex items-center gap-2">
+                        <div class="w-7 h-7 rounded-full flex items-center justify-center text-xs font-medium
+                            {% if e.role=='manager' %}bg-orange-50 text-orange-500{% elif e.role in ('finance','finance_director') %}bg-green-50 text-green-500{% elif e.role=='ceo' %}bg-red-50 text-red-500{% elif e.role=='admin' %}bg-gray-100 text-gray-500{% else %}bg-blue-50 text-blue-500{% endif %}">{{ e.name[0] }}</div>
+                        <span class="font-medium">{{ e.name }}</span>
+                    </div>
+                </td>
+                <td style="color:var(--c-text-3)">{{ e.dept_id | dept_name }}</td>
+                <td><span class="inline-block px-2 py-0.5 bg-gray-50 rounded text-xs mono" style="color:var(--c-text-3)">{{ e.level }}</span> <span class="text-xs" style="color:var(--c-text-4)">{{ e.level | level_name }}</span></td>
+                <td>
+                    {% if e.role=='employee' %}<span class="inline-block px-2 py-0.5 bg-blue-50 rounded text-xs" style="color:var(--c-primary)">员工</span>
+                    {% elif e.role=='manager' %}<span class="inline-block px-2 py-0.5 bg-orange-50 rounded text-xs text-orange-500">经理</span>
+                    {% elif e.role=='finance' %}<span class="inline-block px-2 py-0.5 bg-green-50 rounded text-xs text-green-600">财务</span>
+                    {% elif e.role=='finance_director' %}<span class="inline-block px-2 py-0.5 rounded text-xs" style="background:var(--c-purple-bg);color:var(--c-purple)">财务总监</span>
+                    {% elif e.role=='ceo' %}<span class="inline-block px-2 py-0.5 bg-red-50 rounded text-xs text-red-500">总经理</span>
+                    {% elif e.role=='admin' %}<span class="inline-block px-2 py-0.5 bg-gray-100 rounded text-xs text-gray-500">管理员</span>
+                    {% endif %}
+                </td>
+                <td style="color:var(--c-text-3)" class="text-sm">{{ e.phone }}</td>
+                <td class="text-xs" style="color:var(--c-text-4)">{{ e.email }}</td>
+                <td><span class="inline-flex items-center gap-1 text-xs text-green-600"><span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>正常</span></td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
