@@ -65,6 +65,7 @@ python app.py
 
 ```bash
 OA系统已部署到云服务器上
+
 # 1. 配置环境变量
 cp .env.example .env
 # 编辑 .env，填入 API Key
