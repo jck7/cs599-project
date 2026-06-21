@@ -62,6 +62,7 @@ python app.py
 ```
 
 ### Docker 部署
+OA系统已部署到云服务器上
 
 ```bash
 # 1. 配置环境变量
