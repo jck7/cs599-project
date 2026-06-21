@@ -57,6 +57,6 @@ src/
 4. 启动服务：`python src/api/app.py`
 
 ## 项目状态
-- [x] Proposal
+- [] Proposal
 - [ ] MVP
-- [ ] Final
+- [x] Final
