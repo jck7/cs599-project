@@ -72,7 +72,7 @@ cp .env.example .env
 docker-compose up -d --build
 
 # 3. 访问
-# OA 系统：http://8.130.41.88:5000
+OA 系统：http://8.130.41.88:5000
 ```
 
 ## 测试账号
